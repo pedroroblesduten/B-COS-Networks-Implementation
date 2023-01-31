@@ -89,24 +89,4 @@ class resNet34(nn.Module):
         return self.sequential_model()[:-1](x)
 
     def get_layer_idx(self, idx):
-        return int(np.ceil(len(self.sequential_model())*idx/10))
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-        
-
-
-    
+        return int(np.ceil(len(self.sequential_model())*idx/10))   
