@@ -1,24 +1,32 @@
 import torch
 import torch.nn as nn
 import pandas as pd
-from datasets.load_data import loadData
+from load_data import loadData
 from Bcos_nets import resNet34
 import torch.optim as optim
+from utils import plot_losses
+import argparse
+import os
 
 class trainingBcos:
     def __init__(self, args):
         self.loader = loadData(args)
         self.model = resNet34
+        self.create_paths(args.ckpt_path, args.losses_path)
 
     @staticmethod
-    def prepare_training_mri_vqvae():
-        os.makedirs('results_mri_vqvae', exist_ok=True)
-        os.makedirs('checkpoints_mri_vqvae', exist_ok=True)
+    def create_paths(ckpt_path, losses_path):
+        if not os.path.exists(ckpt_path):
+            os.makedirs(ckpt_path)
 
-    def training(self):
+        if not os.path.exists(losses_path):
+            os.makedirs(losses_path)
+
+
+    def training(self, args):
         
         #LOADING DATA
-        train_dataloader, val_dataloader = self.loader.getDataloader(args)
+        train_dataloader, val_dataloader = self.loader.getDataloader()
 
         #TRAINING PARAMETERS
         lr = 3e-4
@@ -41,11 +49,12 @@ class trainingBcos:
             epoch_train_losses = []
 
             model.train()
-            for batch in tqdm(train_dataloader):
-                                   
-                output = self.model(batch)
+            for imgs, labels in tqdm(train_dataloader):
+                imgs, labels = imgs.to(args.device), labels.to(args.device)  
+
+                output = self.model(imgs)
                 optimizer.zero_grad()
-                loss = criterion(X, Y)
+                loss = criterion(output, ims)
                 loss.backward()
                 optimizer.step()
                 iter_num += 1
@@ -53,10 +62,11 @@ class trainingBcos:
                     
                     
             model.eval()
-            for val_batch in X_val_index:
-                X, Y = get_inputs(val_batch, args.pkeep)
-                X, Y = X.to(args.device), Y.to(args.device)
-                logits, loss = model(X, Y)
+            for imgs, labels in val_dataloader:
+                imgs, labels = imgs.to(args.device), labels.to(args.device)  
+
+                output = self.model(imgs)
+                loss = criterion(imgs, labels)
                 epoch_val_losses.append(loss.detach().cpu().numpy())
 
             train_loss, val_loss = np.mean(epoch_train_losses), np.mean(epoch_val_losses)
@@ -79,12 +89,37 @@ class trainingBcos:
                 np.save(os.path.join(args.save_loss, args.model_name+'_train_loss.npy'), all_train_loss)
                 np.save(os.path.join(args.save_loss, args.model_name+'_val_loss.npy'), all_val_loss)
                 torch.save(model.state_dict(), os.path.join(args.gpt_save_ckpt, f'{args.model_name}_lastEpoch_{epoch}.pt'))
+
+            #SAVING LOSSES PLOT
+            if epoch % 20 == 0:
+                train_L = np.load(os.path.join(args.save_loss, args.model_name+'_train_loss.npy'))
+                val_L = np.load(os.path.join(args.save_loss, args.model_name+'_val_loss.npy'))
+                plot_losses(args, train_L, val_L, args.model_name)
+
+
        
-        print(f'--- FINISHED {args.model_name} TRAINING ---')a
+        print(f'--- FINISHED {args.model_name} TRAINING ---')
 
 
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="BCOS_TRAINING")
+
+    parser.add_argument('--model_name', type=str, default='resNet34')
+    parser.add_argument('--dataset', type=str, default='ImageNet')
+    parser.add_argument('--imagenetPath', type=str, default='/scratch2/pedroroblesduten/classical_datasets/imagenet')
+    parser.add_argument('--cifar10Path', type=str, default='/scratch2/pedroroblesduten/classical_datasets/cifar10')
+    parser.add_argument('--cifar100Path', type=str, default='/scratch2/pedroroblesduten/classical_datasets/cifar100')
+    parser.add_argument('--epochs', type=int, default=200) 
+    parser.add_argument('--losses_path', type=str, default='/scratch2/pedroroblesduten/BCOS/losses')
+    parser.add_argument('--ckpt_path', type=str, default='/scratch2/pedroroblesduten/BCOS/ckpt')
+    parser.add_argument('--batch_size', type=int, default=5)
+    
 
 
+    args = parser.parse_args()
+    
 
+    #TRAINING
+    trainingBcos(args).training(args)
 
