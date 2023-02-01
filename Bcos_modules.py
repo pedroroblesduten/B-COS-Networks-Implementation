@@ -16,8 +16,8 @@ class normConv2d(nn.Conv2d):
 
         #TODO: find a better way to normalize this, they reported that this increase training time
         w_hat = self.weight.view(w_origial_shape[0], -1)
-        w_hat = w/(w.norm(p=2, dim=1, keepdim=True))
-        w_hat = w.view(w_origial_shape)
+        w_hat = w_hat/(w_hat.norm(p=2, dim=1, keepdim=True))
+        w_hat = w_hat.view(w_origial_shape)
 
         return F.conv2d(x, w_hat,
                         self.bias, self.stride, self.padding, self.dilation, self.groups)
@@ -35,14 +35,15 @@ class BcosConv2d(nn.Module):
             scale=None,
             scale_fact=100,
             **kwargs):
+        super().__init__()
 
         ks = kernel_size
         self.stride = stride
         self.linear = normConv2d(in_c, out_c * max_out, ks, stride, padding, 1, 1, bias=False)
-        self.outc = outc * max_out
+        self.outc = out_c * max_out
         self.b = b
         self.max_out = max_out
-        self.inc = inc
+        self.inc = in_c
         self.kernel_size = ks
         self.kssq = ks**2 if not isinstance(ks, tuple) else np.prod(ks)
         self.padding = padding
@@ -91,7 +92,7 @@ class BcosConv2d(nn.Module):
         return out/self.scale
 
     def fwd_2(self, x):
-        out = self.linear(in_tensor)
+        out = self.linear(x)
 
         # MaxOut computation
         if self.max_out > 1:
@@ -101,7 +102,7 @@ class BcosConv2d(nn.Module):
 
         # Calculating the norm of input patches. Use average pooling and upscale by kernel size.
         # TODO: implement directly as F.sum_pool2d...
-        norm = (F.avg_pool2d((in_tensor ** 2).sum(1, keepdim=True), self.kernel_size, padding=self.padding,
+        norm = (F.avg_pool2d((x ** 2).sum(1, keepdim=True), self.kernel_size, padding=self.padding,
                                     stride=self.stride) * self.kssq + 1e-6).sqrt_()
 
         # In order to compute the explanations, we detach the dynamically calculated scaling from the graph.

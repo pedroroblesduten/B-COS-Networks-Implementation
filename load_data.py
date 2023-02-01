@@ -65,12 +65,12 @@ class loadData:
                 ])
             train_loader = torch.utils.data.DataLoader(
                 torchvision.datasets.CIFAR10(self.dataPath, train=True, download=True, 
-                                             transform=cifar10_transfors),
+                                             transform=cifar10_transform),
                 batch_size=self.batch_size, shuffle=True)
 
             val_loader = torch.utils.data.DataLoader(
                 torchvision.datasets.CIFAR10(self.dataPath, train=False, download=True, 
-                                             transform=cifar10_transfors),
+                                             transform=cifar10_transform),
                 batch_size=self.batch_size, shuffle=True)
 
         return train_loader, val_loader

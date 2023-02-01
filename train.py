@@ -7,11 +7,12 @@ import torch.optim as optim
 from utils import plot_losses
 import argparse
 import os
+from tqdm import tqdm
 
 class trainingBcos:
     def __init__(self, args):
         self.loader = loadData(args)
-        self.model = resNet34
+        self.model = resNet34(args)
         self.create_paths(args.ckpt_path, args.losses_path)
 
     @staticmethod
@@ -33,8 +34,10 @@ class trainingBcos:
         patience = 10
         patience_counter = 0
         best_val_loss = 1e9
-        criterion = loss
+        criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.model.parameters())
+
+        self.model.to(args.device)
 
 
 
@@ -42,26 +45,26 @@ class trainingBcos:
         #       TRAINING LOOP       #
         #############################
 
-        print(f' STARTING TRAINING FOR {args.model_name} FOR {args.datasets}')
+        print(f' STARTING TRAINING FOR {args.model_name} FOR {args.dataset}')
 
         for epoch in range(args.epochs):
             epoch_val_losses = []
             epoch_train_losses = []
 
-            model.train()
+            self.model.train()
             for imgs, labels in tqdm(train_dataloader):
-                imgs, labels = imgs.to(args.device), labels.to(args.device)  
+                imgs, labels = imgs.to(args.device), labels.to(args.device)
 
                 output = self.model(imgs)
                 optimizer.zero_grad()
-                loss = criterion(output, ims)
+                loss = criterion(output, labels)
                 loss.backward()
                 optimizer.step()
                 iter_num += 1
                 epoch_train_losses.append(loss.detach().cpu().numpy())
                     
                     
-            model.eval()
+            self.model.eval()
             for imgs, labels in val_dataloader:
                 imgs, labels = imgs.to(args.device), labels.to(args.device)  
 
@@ -106,14 +109,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="BCOS_TRAINING")
 
     parser.add_argument('--model_name', type=str, default='resNet34')
-    parser.add_argument('--dataset', type=str, default='ImageNet')
+    parser.add_argument('--dataset', type=str, default='CIFAR10')
     parser.add_argument('--imagenetPath', type=str, default='/scratch2/pedroroblesduten/classical_datasets/imagenet')
     parser.add_argument('--cifar10Path', type=str, default='/scratch2/pedroroblesduten/classical_datasets/cifar10')
     parser.add_argument('--cifar100Path', type=str, default='/scratch2/pedroroblesduten/classical_datasets/cifar100')
     parser.add_argument('--epochs', type=int, default=200) 
     parser.add_argument('--losses_path', type=str, default='/scratch2/pedroroblesduten/BCOS/losses')
     parser.add_argument('--ckpt_path', type=str, default='/scratch2/pedroroblesduten/BCOS/ckpt')
-    parser.add_argument('--batch_size', type=int, default=5)
+    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--device', type=str, default='cuda')
     
 
 
