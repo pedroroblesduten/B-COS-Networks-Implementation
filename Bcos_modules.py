@@ -114,17 +114,3 @@ class BcosConv2d(nn.Module):
 
             return out / (norm * self.scale)
 
-
-
-
-
-
-
-
-
-        
-
-
-
-
-    
