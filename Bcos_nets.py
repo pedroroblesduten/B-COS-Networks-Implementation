@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from Bcos_modules import BcosConv2d
+from utils import FinalLayer, MyAdaptiveAvgPool2d
 
 class residualBlock(nn.Module):
     def __init__(self, in_c, out_c, ks=3, s=1, p=1):
@@ -25,7 +26,10 @@ class resNet34(nn.Module):
         self.n_128 = 3
         self.n_256 = 5
         self.n_512 = 2
-        self.num_classes = 1000
+        if args.dataset == 'CIFAR10':
+            self.num_classes = 10
+        self.logit_bias = np.log(.1/.9)
+        self.logit_temperature = 1
         
         self.convin = BcosConv2d(3, 64, 7, 2, 3)
         self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
@@ -59,6 +63,11 @@ class resNet34(nn.Module):
         
         self.fc = BcosConv2d(512, self.num_classes)
 
+        self.classifier = nn.Sequential([
+            MyAdaptiveAvgPool2d((1, 1)),
+            FinalLayer(bias=logit_bias, norm=logit_temperature)
+        ])
+
         self.sequential_model = nn.Sequential(
             self.convin,
             self.avgpool,
@@ -66,7 +75,8 @@ class resNet34(nn.Module):
             self.layers_128,
             self.layers_256,
             self.layers_512,
-            self.fc)
+            self.fc,
+            self.classifier)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
