@@ -8,6 +8,8 @@ from utils import plot_losses
 import argparse
 import os
 from tqdm import tqdm
+from args_parameters import getArgs
+import numpy as np
 
 class trainingBcos:
     def __init__(self, args):
@@ -106,23 +108,8 @@ class trainingBcos:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="BCOS_TRAINING")
 
-    parser.add_argument('--model_name', type=str, default='resNet34')
-    parser.add_argument('--dataset', type=str, default='CIFAR10')
-    parser.add_argument('--imagenetPath', type=str, default='/scratch2/pedroroblesduten/classical_datasets/imagenet')
-    parser.add_argument('--cifar10Path', type=str, default='/scratch2/pedroroblesduten/classical_datasets/cifar10')
-    parser.add_argument('--cifar100Path', type=str, default='/scratch2/pedroroblesduten/classical_datasets/cifar100')
-    parser.add_argument('--epochs', type=int, default=200) 
-    parser.add_argument('--losses_path', type=str, default='/scratch2/pedroroblesduten/BCOS/losses')
-    parser.add_argument('--ckpt_path', type=str, default='/scratch2/pedroroblesduten/BCOS/ckpt')
-    parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--device', type=str, default='cuda')
-    
-
-
-    args = parser.parse_args()
-    
+    args = getArgs('local')    
 
     #TRAINING
     trainingBcos(args).training(args)

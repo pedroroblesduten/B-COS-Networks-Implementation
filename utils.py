@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
 
 def plot_losses(args, train_loss, val_loss, model_n):
     epochs = np.arange(1, len(train_loss)+1)
