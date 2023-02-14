@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
+import numpy as np
 from load_data import loadData
 from Bcos_nets import resNet34
 import torch.optim as optim
@@ -14,17 +15,17 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import recall_score, precision_score, accuracy_score
 
-def getResults(true, pred):
+def getResults(y_true, y_pred):
     c_matrix = confusion_matrix(y_true, y_pred)
-    tn, fp, fn, tp = c_matrix.ravel()
-    recall = recall_score(true, pred, average='macro')
+    #tn, fp, fn, tp = c_matrix
+    recall = recall_score(y_true, y_pred, average='macro')
     precision = precision_score(y_true, y_pred, average='macro')
     accuracy = accuracy_score(y_true, y_pred)
+    dict_metrics = {'accuuracy' : [accuracy],
+                    'precision' : [precision],
+                    'recall' : [recall]}
 
-    df = pd.DataFrame()
-    df['accuracy'] = accuracy
-    df['precision'] = precision
-    df['recall'] = recall
+    df = pd.DataFrame.from_dict(dict_metrics)
 
     print('-- CONFUSION MATRIX -- ')
     print(c_matrix)
@@ -60,37 +61,26 @@ def getExplanationImage(args, img, grads, smooth=15, alpha_percentile=99.5):
 
 
 
-class trainingBcos:
+class inferenceBcos:
     def __init__(self, args):
         self.loader = loadData(args)
         self.model = resNet34(args)
-        self.create_paths(args.save_ckpt, args.save_losses)
-        self.model = getModels(args)
-
-    @staticmethod
-    def create_paths(ckpt_path, losses_path):
-        print('*preparing for traing*')
-        if not os.path.exists(ckpt_path):
-            os.makedirs(ckpt_path)
-
-        if not os.path.exists(losses_path):
-            os.makedirs(losses_path)
-            print(ckpt_path, losses_path)
+        self.model = self.getModels(args)
 
     def getModels(self, args):
         # LOADING MODEL
-        transf = resNet34(args).to(args.device)
-        if args.gpt_load_ckpt is not None:
-            path  = args.gpt_load_ckpt.split('ckpt/')[-1]
+        model = resNet34(args).to(args.device)
+        if args.load_ckpt is not None:
+            path  = args.load_ckpt.split('ckpt/')[-1]
             print(f' -> LOADING MODEL: {path}')
-            transf.load_state_dict(torch.load(args.load_ckpt, map_location=args.device), strict=False)
+            model.load_state_dict(torch.load(args.load_ckpt, map_location=args.device), strict=False)
         else:
             print(f' -> LOADING MODEL: no checkpoint, intializing randomly')
 
         return model
 
 
-    def evaluateMetric(self, args):
+    def evaluateMetrics(self, args):
         print('======================================')
         print('|                                    |')
         print('|      WELCOME TO BCOS INFERENCE     |')
@@ -109,7 +99,8 @@ class trainingBcos:
         #############################
 
         print(f' STARTING CLASSIFICATION WITH {args.model_name} FOR {args.dataset}')                 
-                    
+        pred_all = []
+        true_all = []
         self.model.eval()
         for imgs, labels in tqdm(val_dataloader):
             imgs, labels = imgs.to(args.device), labels.to(args.device)
@@ -117,13 +108,21 @@ class trainingBcos:
             labels = F.one_hot(labels, num_classes=10)
             self.model.zero_grad()
             logits = self.model(imgs)
+            probs = F.softmax(logits, dim=-1)
 
-            max_values, max_indices = torch.max(logits, dim=-1)
+            max_values, pred = torch.max(probs, dim=-1)
+            #print(max_indices[:10])
+            pred, true = list(pred.cpu().detach().numpy()), list(true.cpu().detach().numpy())
+            pred_all = np.concatenate((pred_all, pred))
+            true_all = np.concatenate((true_all, true))
+
+        
 
             # Gather the corresponding class labels
-            pred = torch.gather(torch.arange(10), dim=0, index=max_indices.unsqueeze(1)).squeeze(1)
-
-            acc = getResults(true, pred)
+            #pred = torch.gather(torch.arange(10, device=args.device), dim=0, index=max_indices.unsqueeze(1)).squeeze(1)
+        pred_all = torch.tensor(pred_all) #.view(-1)
+        true_all = torch.tensor(true_all) # .view(-1)
+        acc = getResults(true_all, pred_all)
 
     def getExplanations(self, args):
 
@@ -175,7 +174,7 @@ class trainingBcos:
 
 if __name__ == '__main__':
 
-    args = getArgs('local')    
+    args = getArgs('speed')    
 
     #TRAINING
-    trainingBcos(args).training(args)
+    inferenceBcos(args).getExplanations(args)

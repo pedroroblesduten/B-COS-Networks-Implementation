@@ -12,6 +12,8 @@ def getArgs(mode):
         args.epochs=200
         args.save_losses='/scratch2/pedroroblesduten/BCOS/losses'
         args.save_ckpt='/scratch2/pedroroblesduten/BCOS/ckpt'
+        args.load_ckpt='/scratch2/pedroroblesduten/BCOS/ckpt/BCOS_bestVAL.pt'
+        args.save_results_path = '/scratch2/pedroroblesduten/BCOS/results'
         args.batch_size=128
         args.device='cuda'
         args.verbose = False

@@ -115,7 +115,7 @@ class trainingBcos:
 
 if __name__ == '__main__':
 
-    args = getArgs('local')    
+    args = getArgs('speed')    
 
     #TRAINING
     trainingBcos(args).training(args)
