@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import pandas as pd
 from load_data import loadData
 from Bcos_nets import resNet34
@@ -11,11 +12,12 @@ from tqdm import tqdm
 from args_parameters import getArgs
 import numpy as np
 
+
 class trainingBcos:
     def __init__(self, args):
         self.loader = loadData(args)
         self.model = resNet34(args)
-        self.create_paths(args.ckpt_path, args.losses_path)
+        self.create_paths(args.save_ckpt, args.save_losses)
 
     @staticmethod
     def create_paths(ckpt_path, losses_path):
@@ -24,6 +26,7 @@ class trainingBcos:
 
         if not os.path.exists(losses_path):
             os.makedirs(losses_path)
+            print(ckpt_path, losses_path)
 
 
     def training(self, args):
@@ -33,11 +36,14 @@ class trainingBcos:
 
         #TRAINING PARAMETERS
         lr = 3e-4
+        iter_num = 0
         patience = 10
         patience_counter = 0
         best_val_loss = 1e9
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.BCEWithLogitsLoss()
         optimizer = optim.Adam(self.model.parameters())
+        all_train_loss = []
+        all_val_loss = []
 
         self.model.to(args.device)
 
@@ -56,10 +62,11 @@ class trainingBcos:
             self.model.train()
             for imgs, labels in tqdm(train_dataloader):
                 imgs, labels = imgs.to(args.device), labels.to(args.device)
+                labels = F.one_hot(labels, num_classes=10)
 
                 output = self.model(imgs)
                 optimizer.zero_grad()
-                loss = criterion(output, labels)
+                loss = criterion(output, labels.float())
                 loss.backward()
                 optimizer.step()
                 iter_num += 1
@@ -69,9 +76,9 @@ class trainingBcos:
             self.model.eval()
             for imgs, labels in val_dataloader:
                 imgs, labels = imgs.to(args.device), labels.to(args.device)  
-
+                labels = F.one_hot(labels, num_classes=10)
                 output = self.model(imgs)
-                loss = criterion(imgs, labels)
+                loss = criterion(output, labels.float())
                 epoch_val_losses.append(loss.detach().cpu().numpy())
 
             train_loss, val_loss = np.mean(epoch_train_losses), np.mean(epoch_val_losses)
@@ -79,7 +86,7 @@ class trainingBcos:
             #Early Stop
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                torch.save(model.state_dict(), os.path.join(args.gpt_save_ckpt, args.model_name+'_bestVAL.pt'))
+                torch.save(self.model.state_dict(), os.path.join(args.save_ckpt, 'BCOS_bestVAL.pt'))
 
             else:
                 patience_counter += 1
@@ -91,17 +98,10 @@ class trainingBcos:
             all_val_loss.append(val_loss)
 
             if epoch % 10 == 0:
-                np.save(os.path.join(args.save_loss, args.model_name+'_train_loss.npy'), all_train_loss)
-                np.save(os.path.join(args.save_loss, args.model_name+'_val_loss.npy'), all_val_loss)
-                torch.save(model.state_dict(), os.path.join(args.gpt_save_ckpt, f'{args.model_name}_lastEpoch_{epoch}.pt'))
-
-            #SAVING LOSSES PLOT
-            if epoch % 20 == 0:
-                train_L = np.load(os.path.join(args.save_loss, args.model_name+'_train_loss.npy'))
-                val_L = np.load(os.path.join(args.save_loss, args.model_name+'_val_loss.npy'))
-                plot_losses(args, train_L, val_L, args.model_name)
-
-
+                np.save(os.path.join(args.save_losses, 'BCOS_train_loss.npy'), all_train_loss)
+                np.save(os.path.join(args.save_losses, 'BCOS_val_loss.npy'), all_val_loss)
+            if epoch % 50 == 0:
+                torch.save(self.model.state_dict(), os.path.join(args.save_ckpt, f'BCOS_lastEpoch_{epoch}.pt'))
        
         print(f'--- FINISHED {args.model_name} TRAINING ---')
 

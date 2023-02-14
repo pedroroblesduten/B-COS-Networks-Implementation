@@ -14,17 +14,19 @@ def getArgs(mode):
         args.ckpt_path='/scratch2/pedroroblesduten/BCOS/ckpt'
         args.batch_size=128
         args.device='cuda'
+        args.verbose = False
 
     elif mode == 'local':
         args.model_name='resNet34'
         args.dataset='CIFAR10'
-        args.imagenetPath=r"C:\Users\pedro\OneDrive\Área de Trabalho\classical_datasets\imagenet"
-        args.cifar10Path=r"C:\Users\pedro\OneDrive\Área de Trabalho\classical_datasets\CIFAR10"
+        args.imagenetPath="C:/Users/pedro/OneDrive/Área de Trabalho/classical_datasets/imagenet"
+        args.cifar10Path="C:/Users/pedro/OneDrive/Área de Trabalho/classical_datasets/CIFAR10"
         #args.cifar100Path='/scratch2/pedroroblesduten/classical_datasets/cifar100'
         args.epochs=200
-        args.losses_path=r"C:\Users\pedro\OneDrive\Área de Trabalho\LOCAL\bcos\losses"
-        args.ckpt_path = r"C:\Users\pedro\OneDrive\Área de Trabalho\LOCAL\bcos\ckpt"
-        args.batch_size=10
+        args.save_losses="./losses"
+        args.save_ckpt = "/ckpt"
+        args.batch_size=32
         args.device='cuda'
+        args.verbose = False
       
     return args

@@ -22,7 +22,9 @@ class residualBlock(nn.Module):
 class resNet34(nn.Module):
     def __init__(self, args):
         super().__init__()
-
+        
+        self.verbose = args.verbose
+        #Number of residual blocks
         self.n_64 = 3
         self.n_128 = 3
         self.n_256 = 5
@@ -64,10 +66,10 @@ class resNet34(nn.Module):
         
         self.fc = BcosConv2d(512, self.num_classes)
 
-        self.classifier = nn.Sequential([
+        self.classifier = nn.Sequential(
             MyAdaptiveAvgPool2d((1, 1)),
             FinalLayer(bias=self.logit_bias, norm=self.logit_temperature)
-        ])
+        )
 
         self.sequential_model = nn.Sequential(
             self.convin,
@@ -87,40 +89,52 @@ class resNet34(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
+        if self.verbose:
+            print(f'INPUT SHAPE: {x.shape}')
         x = self.convin(x)
-        print(f'shape after convin: {x.shape}')
+        if self.verbose:
+            print(f'shape after convin: {x.shape}')
         x = self.avgpool(x)
         
         for l_64 in self.layers_64:
             x = l_64(x)
 
         x = self.bcos_conv_1_128(x)
-        print(f'shape bcos_conv1_128: {x.shape}')
+        if self.verbose:
+            print(f'shape bcos_conv1_128: {x.shape}')
         x = self.bcos_conv_2_128(x)
 
         for l_128 in self.layers_128:
             x = l_128(x)
         x = self.bcos_conv_1_256(x)
         x = self.bcos_conv_2_256(x)
-        print(f'shape bcos256 {x.shape}')
+        if self.verbose:
+            print(f'shape bcos256 {x.shape}')
 
         for l_256 in self.layers_256:
             x = l_256(x)
-        print(f'shape layers256 {x.shape}')
+        if self.verbose:
+            print(f'shape layers256 {x.shape}')
 
         x = self.bcos_conv_1_512(x)
         x = self.bcos_conv_2_512(x)
-        print(f'shape bcos512{x.shape}')
+        if self.verbose:
+            print(f'shape bcos512{x.shape}')
 
         for l_512 in self.layers_512:
             x = l_512(x)
         #x = torch.flatten(x, 1)
-        print(f'shape layers512 {x.shape}')
+        if self.verbose:
+            print(f'shape layers512 {x.shape}')
 
         x = self.fc(x)
-        print(f'shape fc {x.shape}')
+        if self.verbose:
+            print(f'shape fc {x.shape}')
 
         x = self.classifier(x)
+        #x = x.long()
+        if self.verbose:
+            print(f'OUTPUT SHAPE: {x.shape}')
 
         return x
 
