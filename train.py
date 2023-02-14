@@ -21,6 +21,7 @@ class trainingBcos:
 
     @staticmethod
     def create_paths(ckpt_path, losses_path):
+        print('*preparing for traing*')
         if not os.path.exists(ckpt_path):
             os.makedirs(ckpt_path)
 
@@ -30,6 +31,11 @@ class trainingBcos:
 
 
     def training(self, args):
+        print('____________________________________')
+        print('|                                  |')
+        print('|     WELCOME TO BCOS TRAINING     |')
+        print('|                                  |')
+        print('____________________________________')
         
         #LOADING DATA
         train_dataloader, val_dataloader = self.loader.getDataloader()
@@ -53,7 +59,7 @@ class trainingBcos:
         #       TRAINING LOOP       #
         #############################
 
-        print(f' STARTING TRAINING FOR {args.model_name} FOR {args.dataset}')
+        print(f' STARTING TRAINING WITH {args.model_name} FOR {args.dataset}')
 
         for epoch in range(args.epochs):
             epoch_val_losses = []
@@ -109,7 +115,7 @@ class trainingBcos:
 
 if __name__ == '__main__':
 
-    args = getArgs('local')    
+    args = getArgs('speed')    
 
     #TRAINING
     trainingBcos(args).training(args)

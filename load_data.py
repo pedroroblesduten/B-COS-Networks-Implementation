@@ -36,6 +36,8 @@ class loadData:
 
 
     def getDataloader(self):
+        print(f' Dataset: {self.dataset}')
+        print(' -> Loading data ...')
         if self.dataset == 'ImageNet':
             imagenet_transforms=transforms.Compose([
                 transforms.Resize((150,150)),

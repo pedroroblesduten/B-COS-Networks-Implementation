@@ -10,8 +10,8 @@ def getArgs(mode):
         args.cifar10Path='/scratch2/pedroroblesduten/classical_datasets/cifar10'
         args.cifar100Path='/scratch2/pedroroblesduten/classical_datasets/cifar100'
         args.epochs=200
-        args.losses_path='/scratch2/pedroroblesduten/BCOS/losses'
-        args.ckpt_path='/scratch2/pedroroblesduten/BCOS/ckpt'
+        args.save_losses='/scratch2/pedroroblesduten/BCOS/losses'
+        args.save_ckpt='/scratch2/pedroroblesduten/BCOS/ckpt'
         args.batch_size=128
         args.device='cuda'
         args.verbose = False
