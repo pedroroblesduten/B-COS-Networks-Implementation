@@ -55,24 +55,17 @@ class BcosConv2d(nn.Module):
         else:
             self.scale = scale
 
-
-    def forward(self, x):
-        if self.b == 2:
-            return self.fwd_2(x)
-        else:
-            return self.fwd_b(x)
-
     def explanationMode(self, detach=True):
         self.detach = detach
 
-    def fwd_b(self, x):
+    def forward(self, x):
         out = self.linear(x)
         batch_size, c, h, w = out.shape
 
         #MaxOut:
         if self.max_out > 1:
             batch_size, c, h, w = out.shape
-            out = out.view(bs, -1, self.max_out, h, w)
+            out = out.view(batch_size, -1, self.max_out, h, w)
             out = out.max(dim=2, keepdim=False)[0]
                 
         if self.b == 1:
@@ -82,7 +75,7 @@ class BcosConv2d(nn.Module):
                 stride=self.stride) * self.kssq + 1e-6).sqrt_()
 
         #Calculating cos similarity
-        ab_cos = (out/norm).abs() + 1e-6
+        abs_cos = (out/norm).abs() + 1e-6
 
         if self.detach:
             abs_cos = abs_cos.detach()
@@ -91,26 +84,66 @@ class BcosConv2d(nn.Module):
 
         return out/self.scale
 
-    def fwd_2(self, x):
+
+class normLinear(nn.Linear):
+    
+    # Computing |W_j|*a_j
+    def forward(self, x):
+        w_origial_shape = self.weight.shape
+
+        #TODO: find a better way to normalize this, they reported that this increase training time
+        w_hat = self.weight.view(w_origial_shape[0], -1)
+        w_hat = w_hat/(w_hat.norm(p=2, dim=1, keepdim=True))
+        w_hat = w_hat.view(w_origial_shape)
+
+        return F.linear(input = x,
+                        weight = w_hat,
+                        bias = self.bias)
+
+class BcosLinear(nn.Module):
+
+    def __init__(
+            self,
+            in_d, out_d,
+            max_out=2,
+            b=2,
+            scale=None,
+            scale_fact=100,
+            **kwargs):
+        super().__init__()
+
+        self.linear = normLinear(in_d, out_d, bias=False)
+        self.outc = out_d
+        self.b = b
+        self.inc = in_d
+        self.detach = False
+
+        #if scale is None:
+        #    ks_scale = ks if not isinstance(ks, tuple) else np.sqrt(np.prod(ks))
+        #    self.scale = (ks_scale * np.sqrt(self.inc)) / scale_fact
+        #else:
+            #self.scale = scale
+
+    def explanationMode(self, detach=True):
+        self.detach = detach
+
+    def forward(self, x):
         out = self.linear(x)
+        batch_size, d = out.shape
+                
+        if self.b == 1:
+            return out / self.scale
 
-        # MaxOut computation
-        if self.max_out > 1:
-            bs, _, h, w = out.shape
-            out = out.view(bs, -1, self.max_out, h, w)
-            out = out.max(dim=2, keepdim=False)[0]
+        #norm = (F.avg_pool2d((x**2).sum(1, keepdim=True), self.kernel_size, padding=self.padding,
+        #        stride=self.stride) * self.kssq + 1e-6).sqrt_()
+        norm = torch.norm(out)
+        
+        #Calculating cos similarity
+        abs_cos = (out/norm).abs() + 1e-6
 
-        # Calculating the norm of input patches. Use average pooling and upscale by kernel size.
-        # TODO: implement directly as F.sum_pool2d...
-        norm = (F.avg_pool2d((x ** 2).sum(1, keepdim=True), self.kernel_size, padding=self.padding,
-                                    stride=self.stride) * self.kssq + 1e-6).sqrt_()
-
-        # In order to compute the explanations, we detach the dynamically calculated scaling from the graph.
         if self.detach:
-            out = (out * out.abs().detach())
-            norm = norm.detach()
-        else:
-            out = (out * out.abs())
+            abs_cos = abs_cos.detach()
 
-            return out / (norm * self.scale)
+        out = out*abs_cos.pow(self.b-1)
 
+        return out #/self.scale

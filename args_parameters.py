@@ -27,6 +27,6 @@ def getArgs(mode):
         args.save_ckpt = "/ckpt"
         args.batch_size=32
         args.device='cuda'
-        args.verbose = False
+        args.verbose = True
       
     return args

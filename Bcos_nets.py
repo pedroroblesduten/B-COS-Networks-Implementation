@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Bcos_modules import BcosConv2d
+from Bcos_modules import BcosConv2d, BcosLinear
 from utils import FinalLayer, MyAdaptiveAvgPool2d
 import numpy as np
 
@@ -70,6 +70,7 @@ class resNet34(nn.Module):
             MyAdaptiveAvgPool2d((1, 1)),
             FinalLayer(bias=self.logit_bias, norm=self.logit_temperature)
         )
+        self.linear = BcosLinear(512*2*2, 10)
 
         self.sequential_model = nn.Sequential(
             self.convin,
@@ -127,11 +128,15 @@ class resNet34(nn.Module):
         if self.verbose:
             print(f'shape layers512 {x.shape}')
 
-        x = self.fc(x)
+        #x = self.fc(x)
+        #if self.verbose:
+        #    print(f'shape fc {x.shape}')
+        
+        x = x.view(x.shape[0], -1)
         if self.verbose:
-            print(f'shape fc {x.shape}')
+            print(f'shape after flatten: {x.shape}')
 
-        x = self.classifier(x)
+        x = self.linear(x)
         #x = x.long()
         if self.verbose:
             print(f'OUTPUT SHAPE: {x.shape}')
