@@ -14,6 +14,7 @@ from args_parameters import getArgs
 import numpy as np
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import recall_score, precision_score, accuracy_score
+from torchvision import utils as vutils
 
 def getResults(y_true, y_pred):
     c_matrix = confusion_matrix(y_true, y_pred)
@@ -34,29 +35,35 @@ def getResults(y_true, y_pred):
 
     return accuracy
 
-def getExplanationImage(args, img, grads, smooth=15, alpha_percentile=99.5):
+def getExplanationImage(img, grads, smooth=15, alpha_percentile=99.5):
     contrib = (img*grads).sum(0, keepdim=True)
     contrib = contrib[0]
     
-    rgb_grad = (grads/(grads.abs().max(0, keepdim=True)[0] + 1e-22))
-    rgb_grad = rgb.grad.clamp()
-
-    rgb_grad = to_numpy(rgb_grad[:3] / (rgb_grad[:3] + rgb_grad[3:]+1e-12))
-
-    # Set alpha value to the strength (L2 norm) of each location's gradient
-    alpha = (linear_mapping.norm(p=2, dim=0, keepdim=True))
+    
+    rgb_grad = (grads / (grads.abs().max(0, keepdim=True)[0] + 1e-12))
+    rgb_grad = rgb_grad.clamp(0).cpu().numpy()
+    print('rgb_grad', rgb_grad.shape)
+    
+    #rgb_grad = (rgb_grad[:3] / (rgb_grad[:3] + rgb_grad[3:]+1e-12)).cpu().numpy()
+        
+    alpha = (grads.norm(p=2, dim=0, keepdim=True))
+    print('a', alpha.shape)
     # Only show positive contributions
-    alpha = torch.where(contribs[None] < 0, torch.zeros_like(alpha) + 1e-12, alpha)
+    alpha = torch.where(contrib[None] < 0, torch.zeros_like(alpha) + 1e-12, alpha)
     if smooth:
         alpha = F.avg_pool2d(alpha, smooth, stride=1, padding=(smooth-1)//2)
-    alpha = to_numpy(alpha)
+    alpha = (alpha).cpu().numpy()
     alpha = (alpha / np.percentile(alpha, alpha_percentile)).clip(0, 1)
+    print('b', alpha.shape)
 
     rgb_grad = np.concatenate([rgb_grad, alpha], axis=0)
+    print('c', rgb_grad.shape)
     # Reshaping to [H, W, C]
     grad_image = rgb_grad.transpose((1, 2, 0))
     grad_image = torch.tensor(grad_image)
-    grad_image = grad_image.permute(2, 1, 2)
+    grad_image = grad_image.permute(2, 0, 1)
+    print('aaaaa', grad_image.shape)
+    
     return grad_image
 
 
@@ -144,13 +151,14 @@ class inferenceBcos:
         exp_images = []
         self.model.eval()
         for imgs, labels in tqdm(val_dataloader):
-            imgs, labels = imgs.to(args.device).retain_grad(), labels.to(args.device)
+            imgs, labels = imgs.to(args.device), labels.to(args.device)
+            imgs.requires_grad = True
             true = labels
             labels = F.one_hot(labels, num_classes=10)
             self.model.zero_grad()
-            output = self.model(imgs)
+            logits = self.model(imgs)
 
-            loss = criterion(output, labels.float())
+            loss = criterion(logits, labels.float())
             loss.backward()
 
             probs = F.softmax(logits, dim=-1)
@@ -159,12 +167,16 @@ class inferenceBcos:
 
             max_probs, max_img_in_batch = torch.max(max_values, dim=0)
 
-            img_to_explain = imgs[max_img_in_batch, ...]
-            explanation = getExplanationImage(img_to_explain, img_to_explain.grad())
+            explanation = getExplanationImage(imgs[max_img_in_batch], imgs.grad[max_img_in_batch])
+            
+            ori_images.append(imgs[max_img_in_batch])
 
-            ori_images.append(img_to_explain)
-            exp_images.append(exp_images)
-
+            exp_images.append(explanation)
+        
+        ori_images = torch.stack(ori_images).cpu()
+        exp_images = torch.stack(exp_images).cpu()
+        print(ori_images.shape)
+        print(exp_images.shape)
         real_fake_images = torch.cat((ori_images[:5], exp_images.add(1).mul(0.5)[:5]))
         vutils.save_image(real_fake_images, os.path.join(args.save_results_path, f'explanation_results.jpg'), nrow=5)
                
