@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import pandas as pd
 from load_data import loadData
 from Bcos_nets import resNet34
+from baseline_models import baseResNet34
 import torch.optim as optim
 from utils import plot_losses
 import argparse
@@ -11,12 +12,15 @@ import os
 from tqdm import tqdm
 from args_parameters import getArgs
 import numpy as np
+from torch.autograd import Variable
+from utils import AddInverse
+from teste import testeResNet34
 
 
 class trainingBcos:
     def __init__(self, args):
         self.loader = loadData(args)
-        self.model = resNet34(args)
+        self.model = testeResNet34()
         self.create_paths(args.save_ckpt, args.save_losses)
 
     @staticmethod
@@ -24,7 +28,7 @@ class trainingBcos:
         print('*preparing for traing*')
         if not os.path.exists(ckpt_path):
             os.makedirs(ckpt_path)
-
+        print(losses_path)
         if not os.path.exists(losses_path):
             os.makedirs(losses_path)
             print(ckpt_path, losses_path)
@@ -52,6 +56,7 @@ class trainingBcos:
         all_val_loss = []
 
         self.model.to(args.device)
+        print(self.model)
 
 
 
@@ -68,6 +73,7 @@ class trainingBcos:
             self.model.train()
             for imgs, labels in tqdm(train_dataloader):
                 imgs, labels = imgs.to(args.device), labels.to(args.device)
+                #imgs = Variable(AddInverse()(imgs), requires_grad=True)
                 labels = F.one_hot(labels, num_classes=10)
 
                 output = self.model(imgs)
@@ -81,7 +87,8 @@ class trainingBcos:
                     
             self.model.eval()
             for imgs, labels in val_dataloader:
-                imgs, labels = imgs.to(args.device), labels.to(args.device)  
+                imgs, labels = imgs.to(args.device), labels.to(args.device)
+                #imgs = Variable(AddInverse()(imgs), requires_grad=True)
                 labels = F.one_hot(labels, num_classes=10)
                 output = self.model(imgs)
                 loss = criterion(output, labels.float())
@@ -92,7 +99,7 @@ class trainingBcos:
             #Early Stop
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                torch.save(self.model.state_dict(), os.path.join(args.save_ckpt, 'BCOS_bestVAL.pt'))
+                torch.save(self.model.state_dict(), os.path.join(args.save_ckpt, 'teste_bestVAL.pt'))
 
             else:
                 patience_counter += 1
@@ -104,10 +111,10 @@ class trainingBcos:
             all_val_loss.append(val_loss)
 
             if epoch % 10 == 0:
-                np.save(os.path.join(args.save_losses, 'BCOS_train_loss.npy'), all_train_loss)
-                np.save(os.path.join(args.save_losses, 'BCOS_val_loss.npy'), all_val_loss)
+                np.save(os.path.join(args.save_losses, 'teste_train_loss.npy'), all_train_loss)
+                np.save(os.path.join(args.save_losses, 'teste_val_loss.npy'), all_val_loss)
             if epoch % 50 == 0:
-                torch.save(self.model.state_dict(), os.path.join(args.save_ckpt, f'BCOS_lastEpoch_{epoch}.pt'))
+                torch.save(self.model.state_dict(), os.path.join(args.save_ckpt, f'teste_lastEpoch_{epoch}.pt'))
        
         print(f'--- FINISHED {args.model_name} TRAINING ---')
 

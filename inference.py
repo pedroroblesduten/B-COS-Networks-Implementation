@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from load_data import loadData
 from Bcos_nets import resNet34
+from teste import testeResNet34
+from baseline_models import baseResNet34
 import torch.optim as optim
 from utils import plot_losses
 import argparse
@@ -15,6 +17,10 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import recall_score, precision_score, accuracy_score
 from torchvision import utils as vutils
+from torch.autograd import Variable
+from utils import AddInverse
+
+
 
 def getResults(y_true, y_pred):
     c_matrix = confusion_matrix(y_true, y_pred)
@@ -37,7 +43,9 @@ def getResults(y_true, y_pred):
 
 def getExplanationImage(img, grads, smooth=15, alpha_percentile=99.5):
     contrib = (img*grads).sum(0, keepdim=True)
-    contrib = contrib[0]
+    print(contrib.shape)
+    #contrib = contrib[0]
+    print(contrib.shape)
     
     
     rgb_grad = (grads / (grads.abs().max(0, keepdim=True)[0] + 1e-12))
@@ -49,14 +57,14 @@ def getExplanationImage(img, grads, smooth=15, alpha_percentile=99.5):
     alpha = (grads.norm(p=2, dim=0, keepdim=True))
     print('a', alpha.shape)
     # Only show positive contributions
-    alpha = torch.where(contrib[None] < 0, torch.zeros_like(alpha) + 1e-12, alpha)
+    alpha = torch.where(contrib < 0, torch.zeros_like(alpha) + 1e-12, alpha)
     if smooth:
         alpha = F.avg_pool2d(alpha, smooth, stride=1, padding=(smooth-1)//2)
     alpha = (alpha).cpu().numpy()
     alpha = (alpha / np.percentile(alpha, alpha_percentile)).clip(0, 1)
     print('b', alpha.shape)
 
-    rgb_grad = np.concatenate([rgb_grad, alpha], axis=0)
+    rgb_grad = np.concatenate([rgb_grad, alpha], axis=0)[1:]
     print('c', rgb_grad.shape)
     # Reshaping to [H, W, C]
     grad_image = rgb_grad.transpose((1, 2, 0))
@@ -71,12 +79,11 @@ def getExplanationImage(img, grads, smooth=15, alpha_percentile=99.5):
 class inferenceBcos:
     def __init__(self, args):
         self.loader = loadData(args)
-        self.model = resNet34(args)
         self.model = self.getModels(args)
 
     def getModels(self, args):
         # LOADING MODEL
-        model = resNet34(args).to(args.device)
+        model = testeResNet34().to(args.device)
         if args.load_ckpt is not None:
             path  = args.load_ckpt.split('ckpt/')[-1]
             print(f' -> LOADING MODEL: {path}')
@@ -112,6 +119,7 @@ class inferenceBcos:
         for imgs, labels in tqdm(val_dataloader):
             imgs, labels = imgs.to(args.device), labels.to(args.device)
             true = labels
+            
             labels = F.one_hot(labels, num_classes=10)
             self.model.zero_grad()
             logits = self.model(imgs)
@@ -150,21 +158,22 @@ class inferenceBcos:
         ori_images = []
         exp_images = []
         self.model.eval()
-        for imgs, labels in tqdm(val_dataloader):
-            imgs, labels = imgs.to(args.device), labels.to(args.device)
-            imgs.requires_grad = True
+        for imgss, labels in tqdm(val_dataloader):
+            imgs, labels = imgss.to(args.device).requires_grad_(True), labels.to(args.device)
+            aa = Variable(AddInverse()(imgss), requires_grad=True)
+            print('ADD INVERSE', aa.shape)
             true = labels
             labels = F.one_hot(labels, num_classes=10)
-            self.model.zero_grad()
-            logits = self.model(imgs)
-
-            loss = criterion(logits, labels.float())
-            loss.backward()
-
-            probs = F.softmax(logits, dim=-1)
             
-            max_values, max_indices = torch.max(probs, dim=-1)
+            logits = self.model(imgs)
+            log = self.model(imgs).max()
 
+            imgs.grad = None
+            self.model.zero_grad()
+            log.backward()
+
+            probs = F.softmax(logits, dim=-1)            
+            max_values, max_indices = torch.max(logits, dim=-1)
             max_probs, max_img_in_batch = torch.max(max_values, dim=0)
 
             explanation = getExplanationImage(imgs[max_img_in_batch], imgs.grad[max_img_in_batch])
@@ -172,7 +181,7 @@ class inferenceBcos:
             ori_images.append(imgs[max_img_in_batch])
 
             exp_images.append(explanation)
-        
+
         ori_images = torch.stack(ori_images).cpu()
         exp_images = torch.stack(exp_images).cpu()
         print(ori_images.shape)
@@ -189,4 +198,4 @@ if __name__ == '__main__':
     args = getArgs('speed')    
 
     #TRAINING
-    inferenceBcos(args).getExplanations(args)
+    inferenceBcos(args).evaluateMetrics(args)

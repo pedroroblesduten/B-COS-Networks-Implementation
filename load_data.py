@@ -60,11 +60,12 @@ class loadData:
         elif self.dataset == 'CIFAR10':
             
             cifar10_transform = transforms.Compose([
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
-                    )
-                ])
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+
             train_loader = torch.utils.data.DataLoader(
                 torchvision.datasets.CIFAR10(self.dataPath, train=True, download=True, 
                                              transform=cifar10_transform),

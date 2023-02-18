@@ -58,3 +58,18 @@ class FinalLayer(nn.Module):
     def forward(self, in_tensor):
         out = (in_tensor.view(*in_tensor.shape[:2])/self.norm + self.bias)
         return out
+
+#From the original implementation
+class AddInverse(nn.Module):
+
+    def __init__(self, dim=1):
+        """
+            Adds (1-in_tensor) as additional channels to its input via torch.cat().
+            Can be used for images to give all spatial locations the same sum over the channels to reduce color bias.
+        """
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, in_tensor):
+        out = torch.cat([in_tensor, 1-in_tensor], self.dim)
+        return out
